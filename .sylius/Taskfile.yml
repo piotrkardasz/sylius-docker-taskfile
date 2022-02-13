@@ -1,0 +1,121 @@
+# https://taskfile.dev
+#
+# This is the Taskfile for Sylius in docker environment.
+# Copyright (c) 2022 Piotr Kardasz <piotr.kardasz91@gmail.com>
+# https://github.com/piotrkardasz/sylius-docker-taskfile
+#
+version: '3'
+
+vars:
+  LAST_IMAGE: $(docker-compose images php | grep php |  awk '{ print $2":"$3 }')
+  CONTAINER_APP_ENV:
+    sh: docker-compose exec -T php php -r "echo getenv('CONTAINER_APP_ENV');" || true
+
+env:
+  COMPOSE_FILE: docker-compose.yml;docker-compose.override.yml;docker-compose.debug.yml
+  COMPOSE_PATH_SEPARATOR: ;
+  COMPOSE_PROFILES: default
+
+tasks:
+  config:
+    cmds:
+      - 'PHP_IMAGE={{.LAST_IMAGE}} ENV={{.CONTAINER_APP_ENV}} docker-compose config'
+    silent: true
+
+  about:
+    cmds:
+      - 'echo Current docker image: {{.LAST_IMAGE}}'
+      - 'echo Current environment: {{.CONTAINER_APP_ENV}}'
+      - 'echo Current environment: $COMPOSE_PROFILES'
+    silent: true
+
+  lock:
+    cmds:
+      - docker-compose run --rm  php composer install --no-interaction --no-scripts --no-ansi --quiet
+
+  setup:
+    interactive: true
+    desc: Setup docker
+    cmds:
+      - docker-compose pull || true
+      - docker-compose run --rm php composer install --no-interaction
+      - docker-compose up -d
+      - docker-compose run --rm nodejs
+      - task: install
+
+  install:
+    interactive: true
+    desc: Install Sylius
+    cmds:
+      - docker-compose exec php bin/console doctrine:database:drop --if-exists --force
+      - docker-compose exec php bin/console doctrine:database:create
+      - docker-compose exec php bin/console doctrine:migrations:migrate --no-interaction
+      - docker-compose exec php bin/console doctrine:schema:validate
+      - docker-compose exec php bin/console sylius:install --fixture-suite default --no-interaction
+      - docker-compose exec php bin/console sylius:install:assets
+      - docker-compose exec php bin/console sylius:install --no-interaction
+      - docker-compose exec php bin/console sylius:theme:assets:install public --no-interaction
+      - docker-compose exec php bin/console lexik:jwt:generate-keypair --skip-if-exists --no-interaction
+
+  dev:
+    desc: Switch environment to dev (default)
+    cmds:
+      - task: up
+        vars: { IMAGE: '{{.LAST_IMAGE}}', ENV: 'dev' }
+
+  test:
+    desc: Switch environment to test
+    cmds:
+      - PHP_IMAGE={{.IMAGE}} ENV=test docker-compose up -d --remove-orphans > /dev/null 2>&1
+    env:
+      COMPOSE_PROFILES: default,test
+    silent: true
+
+  prod:
+    desc: Switch environment to test
+    cmds:
+      - task: up
+        vars: { IMAGE: '{{.LAST_IMAGE}}', ENV: 'prod' }
+
+  debug:
+    desc: Enable xDebug
+    cmds:
+      - task: up
+        vars: { IMAGE: '{{.PHP_DEBUG_IMAGE}}', ENV: '{{.CONTAINER_APP_ENV}}' }
+
+  nodebug:
+    desc: Disable xDebug
+    cmds:
+      - task: up
+        vars: { IMAGE: '{{.PHP_IMAGE}}', ENV: '{{.CONTAINER_APP_ENV}}' }
+
+  stop:
+    desc: docker-compose stop
+    cmds:
+      - docker stop $(docker-compose ps -q)  > /dev/null 2>&1
+    silent: true
+
+  start:
+    desc: docker-compose start
+    cmds:
+      - docker-compose start
+
+  up:
+    desc: docker-compose up -d
+    cmds:
+      - echo Running {{.IMAGE}}@{{.ENV}}
+      - PHP_IMAGE={{.IMAGE}} ENV={{.ENV}} docker-compose up -d --remove-orphans > /dev/null 2>&1
+    vars:
+      IMAGE: '{{.IMAGE | default ""}}'
+      ENV: '{{.ENV | default ""}}'
+    silent: true
+
+  down:
+    desc: docker-compose down
+    cmds:
+      - docker-compose down --remove-orphans
+
+  clean:
+    desc: docker-compose cleanup
+    cmds:
+      - docker-compose down --volumes --remove-orphans
