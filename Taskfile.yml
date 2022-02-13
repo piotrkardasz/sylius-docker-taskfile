@@ -17,7 +17,7 @@ tasks:
     cmds:
       - cp docker-compose.override.dist.yml docker-compose.override.yml
     status:
-      - test -f docker-compose.override.dist.yml
+      - test -f docker-compose.override.yml
     silent: true
 
   check:
