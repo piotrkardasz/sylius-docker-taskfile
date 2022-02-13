@@ -1,0 +1,19 @@
+version: '3.4'
+
+services:
+  php:
+    image: ${PHP_IMAGE:-bitbag/sylius-php:7.4-alpine}
+    environment:
+      APP_ENV: ${ENV:-dev}
+      XDEBUG_MODE: debug
+      XDEBUG_CONFIG: >-
+          client_host=host.docker.internal
+          client_port=9003
+          log=/dev/stdout
+      # This should correspond to the server declared in PHPStorm `Preferences | Languages & Frameworks | PHP | Servers`
+      # Then PHPStorm will use the corresponding path mappings
+      PHP_IDE_CONFIG: serverName=sylius
+    extra_hosts:
+      # This line if you would like run xdebug on linux environment (Docker v20.10+ required )
+      # https://github.com/docker/for-linux/issues/264#issuecomment-784985736
+      - "host.docker.internal:host-gateway"
