@@ -1,0 +1,28 @@
+# https://taskfile.dev
+
+version: '3'
+
+includes:
+  docker:
+    taskfile: '{{.HOME}}/.sylius/Taskfile.yml'
+    optional: true
+
+output: prefixed
+
+dotenv: ['.env.taskfile', '{{.HOME}}/.sylius/.env.taskfile']
+
+tasks:
+  init:
+    desc: Create docker-compose.override.yml
+    cmds:
+      - cp docker-compose.override.dist.yml docker-compose.override.yml
+    status:
+      - test -f docker-compose.override.dist.yml
+    silent: true
+
+  check:
+    desc: Display default images
+    cmds:
+      - echo "Default image:" $PHP_IMAGE
+      - echo "Debug image:" $PHP_DEBUG_IMAGE
+    silent: true
